@@ -10,7 +10,6 @@ function formatSize(bytes) {
 function ImageCard({ title, src, size, badge, badgeColor, label }) {
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-ink-100 overflow-hidden flex flex-col animate-slide-up">
-      {/* Header */}
       <div className="px-5 py-4 border-b border-ink-100 flex items-center justify-between">
         <div>
           <h3 className="font-display text-ink-900 text-lg">{title}</h3>
@@ -23,19 +22,12 @@ function ImageCard({ title, src, size, badge, badgeColor, label }) {
         )}
       </div>
 
-      {/* Image */}
       <div className="relative bg-ink-50 flex items-center justify-center" style={{ minHeight: 220 }}>
         {src ? (
-          <img
-            src={src}
-            alt={title}
-            className="w-full object-contain"
-            style={{ maxHeight: 320 }}
-          />
+          <img src={src} alt={title} className="w-full object-contain" style={{ maxHeight: 320 }} />
         ) : (
           <div className="w-full h-48 shimmer" />
         )}
-        {/* Checkerboard for transparent areas */}
         <div
           className="absolute inset-0 -z-10 opacity-30"
           style={{
@@ -47,7 +39,6 @@ function ImageCard({ title, src, size, badge, badgeColor, label }) {
         />
       </div>
 
-      {/* Footer */}
       <div className="px-5 py-4 mt-auto">
         <div className="flex items-center justify-between">
           <span className="text-xs text-ink-400 font-body uppercase tracking-wider">File size</span>
@@ -66,7 +57,25 @@ export default function ComparisonView({
   isLoading,
   pixelDiff,
   savings,
+  usedOriginal,
 }) {
+  // Badge for the compressed card
+  const compressedBadge = isLoading
+    ? 'Processing…'
+    : usedOriginal
+    ? 'No Change'
+    : savings !== null
+    ? `Saved ${savings.toFixed(1)}%`
+    : 'JPEG';
+
+  const compressedBadgeColor = isLoading
+    ? 'bg-amber-100 text-amber-600 animate-pulse-slow'
+    : usedOriginal
+    ? 'bg-amber-100 text-amber-700'
+    : savings > 0
+    ? 'bg-teal-100 text-teal-700'
+    : 'bg-ink-100 text-ink-600';
+
   return (
     <div className="space-y-4">
       {/* Educational note */}
@@ -94,35 +103,25 @@ export default function ComparisonView({
           title="Compressed"
           src={isLoading ? null : compressedSrc}
           size={isLoading ? null : compressedSize}
-          label="JPEG re-encoded"
-          badge={isLoading ? 'Processing…' : savings !== null ? `Saved ${savings.toFixed(1)}%` : 'JPEG'}
-          badgeColor={
-            isLoading
-              ? 'bg-amber-100 text-amber-600 animate-pulse-slow'
-              : savings > 0
-              ? 'bg-teal-100 text-teal-700'
-              : 'bg-ink-100 text-ink-600'
-          }
+          label={usedOriginal ? 'Original kept (already optimal)' : 'JPEG re-encoded'}
+          badge={compressedBadge}
+          badgeColor={compressedBadgeColor}
         />
       </div>
 
-      {/* Stats row */}
-      {!isLoading && compressedSrc && (
+      {/* Stats row — only show when actual compression happened */}
+      {!isLoading && compressedSrc && !usedOriginal && (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 animate-fade-in">
-          {/* Savings */}
           <div className="bg-white border border-ink-100 rounded-xl p-4 shadow-sm">
             <p className="text-xs text-ink-400 uppercase tracking-wider font-body mb-1">Space Saved</p>
             <p className={`text-2xl font-display ${savings > 0 ? 'text-teal-600' : 'text-ink-900'}`}>
               {savings !== null ? `${savings.toFixed(1)}%` : '—'}
             </p>
             <p className="text-xs text-ink-400 mt-1 font-body">
-              {originalSize && compressedSize
-                ? `${formatSize(originalSize - compressedSize)} freed`
-                : ''}
+              {originalSize && compressedSize ? `${formatSize(originalSize - compressedSize)} freed` : ''}
             </p>
           </div>
 
-          {/* Pixel Diff */}
           <div className="bg-white border border-ink-100 rounded-xl p-4 shadow-sm">
             <p className="text-xs text-ink-400 uppercase tracking-wider font-body mb-1">
               Pixel Difference Score
@@ -133,7 +132,6 @@ export default function ComparisonView({
             <p className="text-xs text-ink-400 mt-1 font-body">avg RGB Δ per pixel</p>
           </div>
 
-          {/* Compression ratio */}
           <div className="bg-white border border-ink-100 rounded-xl p-4 shadow-sm col-span-2 md:col-span-1">
             <p className="text-xs text-ink-400 uppercase tracking-wider font-body mb-1">
               Compression Ratio
@@ -148,8 +146,8 @@ export default function ComparisonView({
         </div>
       )}
 
-      {/* Pixel diff explainer */}
-      {!isLoading && compressedSrc && (
+      {/* Pixel diff explainer — only when real compression happened */}
+      {!isLoading && compressedSrc && !usedOriginal && (
         <div className="px-4 py-3 bg-rose-50 border border-rose-100 rounded-xl flex gap-3 items-start animate-fade-in">
           <span className="text-rose-400 text-lg leading-none mt-0.5">📐</span>
           <p className="text-sm text-ink-700 font-body leading-relaxed">

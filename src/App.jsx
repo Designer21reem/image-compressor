@@ -4,8 +4,6 @@ import ComparisonView from './components/ComparisonView';
 import SliderCompare from './components/SliderCompare';
 import Histogram from './components/Histogram';
 
-// ─── Compression helpers ──────────────────────────────────────────────────────
-
 function compressImage(img, quality) {
   return new Promise((resolve) => {
     const canvas = document.createElement('canvas');
@@ -48,7 +46,7 @@ function computePixelDiff(originalImg, compressedSrc) {
       let totalDiff = 0;
       let count = 0;
       for (let i = 0; i < origData.length; i += 4) {
-        totalDiff += Math.abs(origData[i] - compData[i]);
+        totalDiff += Math.abs(origData[i]     - compData[i]);
         totalDiff += Math.abs(origData[i + 1] - compData[i + 1]);
         totalDiff += Math.abs(origData[i + 2] - compData[i + 2]);
         count += 3;
@@ -60,7 +58,6 @@ function computePixelDiff(originalImg, compressedSrc) {
   });
 }
 
-// ─── Section wrapper ──────────────────────────────────────────────────────────
 function Section({ title, number, children }) {
   return (
     <section className="space-y-4">
@@ -75,10 +72,9 @@ function Section({ title, number, children }) {
   );
 }
 
-// ─── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [original, setOriginal] = useState(null); // { src, size, name, img }
-  const [compressed, setCompressed] = useState(null); // { src, size }
+  const [original, setOriginal] = useState(null);
+  const [compressed, setCompressed] = useState(null);
   const [quality, setQuality] = useState(0.8);
   const [isLoading, setIsLoading] = useState(false);
   const [pixelDiff, setPixelDiff] = useState(null);
@@ -89,43 +85,31 @@ export default function App() {
       ? ((original.size - compressed.size) / original.size) * 100
       : null;
 
-  const runCompression = useCallback(
-  async (img, size, q) => {
+  const runCompression = useCallback(async (img, originalSize, originalSrc, q) => {
     setIsLoading(true);
     setPixelDiff(null);
-
     try {
-      // 🟢 إذا الجودة عالية → لا تسوين compression
-      if (q >= 0.95) {
-        setCompressed({
-          src: original.src,
-          size: original.size,
-        });
-
-        setPixelDiff(0);
-        return;
-      }
-
-      // 🔵 غير هيج → سوي compression
       const result = await compressImage(img, q);
-      setCompressed(result);
 
-      const diff = await computePixelDiff(img, result.src);
-      setPixelDiff(diff);
-
+      // KEY FIX: if compressed is bigger or equal, keep the original
+      if (result.size >= originalSize) {
+        setCompressed({ src: originalSrc, size: originalSize, usedOriginal: true });
+        setPixelDiff(0);
+      } else {
+        setCompressed({ ...result, usedOriginal: false });
+        const diff = await computePixelDiff(img, result.src);
+        setPixelDiff(diff);
+      }
     } finally {
       setIsLoading(false);
     }
-  },
-  [original]
-);
+  }, []);
 
-  // Debounced quality change
   useEffect(() => {
     if (!original) return;
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      runCompression(original.img, original.size, quality);
+      runCompression(original.img, original.size, original.src, quality);
     }, 300);
     return () => clearTimeout(debounceRef.current);
   }, [quality, original, runCompression]);
@@ -135,7 +119,7 @@ export default function App() {
       setOriginal(data);
       setCompressed(null);
       setPixelDiff(null);
-      runCompression(data.img, data.size, quality);
+      runCompression(data.img, data.size, data.src, quality);
     },
     [quality, runCompression]
   );
@@ -144,7 +128,9 @@ export default function App() {
     if (!compressed) return;
     const a = document.createElement('a');
     a.href = compressed.src;
-    a.download = `compressed_q${Math.round(quality * 100)}.jpg`;
+    a.download = compressed.usedOriginal
+      ? 'original_kept.jpg'
+      : `compressed_q${Math.round(quality * 100)}.jpg`;
     a.click();
   };
 
@@ -157,7 +143,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-ink-50">
-      {/* ── Header ── */}
       <header className="bg-ink-900 text-white">
         <div className="max-w-4xl mx-auto px-6 py-10 md:py-16">
           <div className="inline-block px-3 py-1 bg-amber-500/20 border border-amber-500/30 rounded-full text-amber-400 text-xs font-mono uppercase tracking-widest mb-5">
@@ -176,15 +161,12 @@ export default function App() {
         </div>
       </header>
 
-      {/* ── Main content ── */}
       <main className="max-w-4xl mx-auto px-6 py-10 space-y-12">
 
-        {/* Step 1: Upload */}
         <Section number="1" title="Upload an Image">
           <ImageUploader onImageLoad={handleImageLoad} />
         </Section>
 
-        {/* Step 2: Quality Control */}
         {original && (
           <Section number="2" title="Adjust Compression Quality">
             <div className="bg-white border border-ink-100 rounded-2xl p-6 shadow-sm space-y-5 animate-slide-up">
@@ -225,14 +207,12 @@ export default function App() {
                 className="w-full"
               />
 
-              {/* Quality markers */}
               <div className="flex justify-between text-[10px] text-ink-300 font-mono px-0.5">
                 {[5, 20, 40, 60, 80, 100].map((v) => (
                   <span key={v}>{v}%</span>
                 ))}
               </div>
 
-              {/* Quick presets */}
               <div className="flex flex-wrap gap-2 pt-1">
                 {[
                   { label: 'Low (30%)', val: 0.3 },
@@ -253,11 +233,22 @@ export default function App() {
                   </button>
                 ))}
               </div>
+
+              {/* Warning: compression would increase size */}
+              {!isLoading && compressed?.usedOriginal && (
+                <div className="px-4 py-3 bg-amber-50 border border-amber-300 rounded-xl flex gap-3 items-start animate-fade-in">
+                  <span className="text-amber-500 text-lg leading-none mt-0.5">⚠️</span>
+                  <p className="text-sm text-ink-700 font-body leading-relaxed">
+                    <span className="font-semibold text-ink-900">Original is already smaller.</span>{' '}
+                    Compressing at this quality would <em>increase</em> the file size, so the original
+                    is kept as-is. Lower the quality slider to achieve real size savings.
+                  </p>
+                </div>
+              )}
             </div>
           </Section>
         )}
 
-        {/* Step 3: Side-by-side comparison */}
         {original && (
           <Section number="3" title="Side-by-Side Comparison">
             <ComparisonView
@@ -268,12 +259,12 @@ export default function App() {
               isLoading={isLoading}
               pixelDiff={pixelDiff}
               savings={savings}
+              usedOriginal={compressed?.usedOriginal}
             />
           </Section>
         )}
 
-        {/* Step 4: Before/After slider */}
-        {original && compressed && !isLoading && (
+        {original && compressed && !isLoading && !compressed.usedOriginal && (
           <Section number="4" title="Interactive Before / After">
             <SliderCompare
               originalSrc={original.src}
@@ -282,33 +273,45 @@ export default function App() {
           </Section>
         )}
 
-        {/* Step 5: Histograms */}
         {original && (
           <Section number="5" title="Histogram Analysis">
             <Histogram
               originalImg={original.img}
-              compressedSrc={isLoading ? null : compressed?.src}
+              compressedSrc={isLoading ? null : (compressed?.usedOriginal ? null : compressed?.src)}
             />
           </Section>
         )}
 
-        {/* Step 6: Download */}
         {compressed && !isLoading && (
           <Section number="6" title="Download Result">
             <div className="bg-white border border-ink-100 rounded-2xl p-6 shadow-sm animate-slide-up">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                   <p className="font-body text-ink-800 font-medium">
-                    Compressed file ready —{' '}
-                    <span className="font-mono text-teal-600">{formatSize(compressed.size)}</span>
-                    {savings !== null && savings > 0 && (
-                      <span className="ml-2 text-teal-600 font-semibold">
-                        ({savings.toFixed(1)}% smaller)
-                      </span>
+                    {compressed.usedOriginal ? (
+                      <>
+                        Original file kept —{' '}
+                        <span className="font-mono text-ink-600">{formatSize(compressed.size)}</span>
+                        <span className="ml-2 text-amber-600 font-semibold text-sm">
+                          (no size reduction at this quality)
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        Compressed file ready —{' '}
+                        <span className="font-mono text-teal-600">{formatSize(compressed.size)}</span>
+                        {savings !== null && savings > 0 && (
+                          <span className="ml-2 text-teal-600 font-semibold">
+                            ({savings.toFixed(1)}% smaller)
+                          </span>
+                        )}
+                      </>
                     )}
                   </p>
                   <p className="text-xs text-ink-400 font-body mt-1">
-                    Saved as JPEG at {Math.round(quality * 100)}% quality
+                    {compressed.usedOriginal
+                      ? 'Original kept — compression would have increased size'
+                      : `Saved as JPEG at ${Math.round(quality * 100)}% quality`}
                   </p>
                 </div>
                 <button
@@ -318,14 +321,13 @@ export default function App() {
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
                   </svg>
-                  Download JPEG
+                  Download
                 </button>
               </div>
             </div>
           </Section>
         )}
 
-        {/* Empty state */}
         {!original && (
           <div className="text-center py-12 text-ink-300 font-body">
             <div className="text-5xl mb-3">⬆️</div>
@@ -334,7 +336,6 @@ export default function App() {
         )}
       </main>
 
-      {/* ── Footer ── */}
       <footer className="border-t border-ink-200 mt-16 py-8 px-6 text-center">
         <p className="text-xs text-ink-400 font-body">
           From Pixels to Perception · Multimedia Seminar Project · All processing happens
