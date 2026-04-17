@@ -90,20 +90,35 @@ export default function App() {
       : null;
 
   const runCompression = useCallback(
-    async (img, size, q) => {
-      setIsLoading(true);
-      setPixelDiff(null);
-      try {
-        const result = await compressImage(img, q);
-        setCompressed(result);
-        const diff = await computePixelDiff(img, result.src);
-        setPixelDiff(diff);
-      } finally {
-        setIsLoading(false);
+  async (img, size, q) => {
+    setIsLoading(true);
+    setPixelDiff(null);
+
+    try {
+      // 🟢 إذا الجودة عالية → لا تسوين compression
+      if (q >= 0.95) {
+        setCompressed({
+          src: original.src,
+          size: original.size,
+        });
+
+        setPixelDiff(0);
+        return;
       }
-    },
-    []
-  );
+
+      // 🔵 غير هيج → سوي compression
+      const result = await compressImage(img, q);
+      setCompressed(result);
+
+      const diff = await computePixelDiff(img, result.src);
+      setPixelDiff(diff);
+
+    } finally {
+      setIsLoading(false);
+    }
+  },
+  [original]
+);
 
   // Debounced quality change
   useEffect(() => {

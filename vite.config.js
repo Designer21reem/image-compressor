@@ -3,6 +3,5 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
-    base: '/', // 🔥 مهم جداً
-
+  base: '/image-compressor/', // مهم لـ GitHub Pages
 })
